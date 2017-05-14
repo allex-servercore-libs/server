@@ -1,0 +1,25 @@
+{
+  "name": "allex_serverservercorelib",
+  "version": "1.0.0",
+  "description": "AllexJS Server lib",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/allex-servercore-libs/server.git"
+  },
+  "keywords": [
+    "ecosystem:AllexJS",
+    "Server",
+    "core",
+    "lib"
+  ],
+  "author": "Andrija Petrovic <andrija.hers@gmail.com>",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/allex-servercore-libs/server/issues"
+  },
+  "homepage": "https://github.com/allex-servercore-libs/server#readme"
+}
