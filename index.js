@@ -1,4 +1,4 @@
-function createServer(execlib, SessionIntroductor, ServiceBase){
+function createServer(execlib, SessionIntroductor){
   'use strict';
   var lib = execlib.lib, q = lib.q, Map = lib.Map,
       fs = require('fs'),
