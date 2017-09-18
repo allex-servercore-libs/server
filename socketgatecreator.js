@@ -18,7 +18,7 @@ function createSocketGate(execlib,Gate){
     talker = null;
   };
   function socketErrorReporter(talker,err){
-    talker.sendobj({err:err});
+    talker.send({err:err});
     talker = null;
   }
   SocketGate.prototype.onDataUnit = function(talker,queryarry){
