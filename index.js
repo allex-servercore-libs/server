@@ -260,7 +260,11 @@ function createServer(execlib, SessionIntroductor){
     sss.servicedestroyedlistener = service.destroyed.attach(onServiceDestroyed.bind(sss));
     sss.sinkdestroyedlistener = sink.destroyed.attach(onSinkDestroyed.bind(sss));
     function _ssd() {
-      var sssp = sss.deathdefer.promise;
+      var sssp;
+      if (!(ssd && sss && sink)) {
+        return;
+      }
+      sssp = sss.deathdefer.promise;
       if(!sss.closesent){
         sss.closesent = true;
         //console.log('sink destroy phase #1: close service', service.modulename);
