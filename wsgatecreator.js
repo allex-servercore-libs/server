@@ -11,6 +11,8 @@ function createWSGate(execlib,Gate){
     this.ws = ws;
     this.mydestroyer = this.destroy.bind(this);
     this.closerdestroyer = this.close.bind(this);
+    this.onSendBound = this.onSend.bind(this);
+    this.sendRawBound = this.sendRaw.bind(this);
     this.pingWaiter = null;
     this.buffer = new StringBuffer();
     this.sending = false;
@@ -32,6 +34,8 @@ function createWSGate(execlib,Gate){
     this.buffer = null;
     this.ws.removeListener('close', this.mydestroyer);
     this.ws.removeAllListeners();
+    this.sendRawBound = null;
+    this.onSendBound = null;
     this.closerdestroyer = null;
     this.mydestroyer = null;
     if (this.pingWaiter) {
@@ -73,6 +77,9 @@ function createWSGate(execlib,Gate){
     if (this.sending === null) {
       return;
     }
+    if (!this.buffer) {
+      return;
+    }
     var jd = JSON.stringify(data);
     this.buffer.add(jd);
     if (this.sending === false) {
@@ -102,11 +109,11 @@ function createWSGate(execlib,Gate){
       return;
     }
     this.sending = true;
-    this.ws.send(raw, this.onSend.bind(this));
+    this.ws.send(raw, this.onSendBound);
   };
   WSWrapper.prototype.sendBuffer = function () {
     if (this.buffer.hasContents()) {
-      this.buffer.get(this.sendRaw.bind(this));
+      this.buffer.get(this.sendRawBound);
     }
   };
   WSWrapper.prototype.onSend = function (error) {
@@ -142,7 +149,12 @@ function createWSGate(execlib,Gate){
       queryarry = null;
       return;
     }
-    usersession.handleIncoming(queryarry)
+    try {
+      usersession.handleIncoming(queryarry)
+    }
+    catch (e) {
+      wsErrorReporter(wswrapper, e);
+    }
     wswrapper = null;
     queryarry = null;
   };

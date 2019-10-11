@@ -19,7 +19,12 @@ function createInProcGate(execlib,Gate){
       queryarry = null;
       return;
     }
-    usersession.handleIncoming(queryarry);
+    try {
+      usersession.handleIncoming(queryarry);
+    }
+    catch (e) {
+      //ignore e
+    }
     queryarry = null;
   };
   InProcGate.prototype.communicationType = 'inproc';

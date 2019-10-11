@@ -13,7 +13,12 @@ function createSocketGate(execlib,Gate){
       //talker.send({id:queryarry.id,introduce:null});
       return;
     }
-    usersession.handleIncoming(queryarry);
+    try {
+      usersession.handleIncoming(queryarry);
+    }
+    catch (e) {
+      socketErrorReporter(talker, e);
+    }
     queryarry = null;
     talker = null;
   };

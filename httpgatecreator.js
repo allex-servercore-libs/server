@@ -20,7 +20,12 @@ function createHttpGate(execlib,Gate){
     }
     if(parsed_url.pathname==='/proc'){
       if(parsed_url.query && parsed_url.query.q){
-        res.write(JSON.stringify(usersession.handleIncoming(parsed_url.query.q)));
+        try {
+          res.write(JSON.stringify(usersession.handleIncoming(parsed_url.query.q)));
+        }
+        catch (e) {
+          httpErrorReporter(res, parsed_url.query, e);
+        }
       }else{
         res.write(JSON.stringify({id:parsed_url.query.q.id,err:'No query'}));
       }

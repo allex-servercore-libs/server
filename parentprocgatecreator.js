@@ -13,7 +13,12 @@ function createParentProcGate(execlib,Gate){
   }
   ParentProcGate.prototype.serve = function(queryarry,usersession){
     if(usersession && process.connected){
-      usersession.handleIncoming(queryarry);
+      try {
+        usersession.handleIncoming(queryarry);
+      }
+      catch (e) {
+        procErrorReporter(e);
+      }
     }else{
       console.log('no can do for',require('util').inspect(queryarry,{depth:null}),usersession);
     }
