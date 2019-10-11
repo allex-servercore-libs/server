@@ -96,7 +96,7 @@ function createGate(execlib,IntroductionStrategy){
     }else{
       //console.log(process.pid,'no session',identity.session,'in','reserved');//require('util').inspect(this.sessions,{depth:null}));
       if (!identity[1]) {
-        console.error('no credentials in',identity);
+        //console.error('no credentials in',identity);
         d.resolve(null);
         return d.promise;
       }
@@ -211,7 +211,7 @@ function createGate(execlib,IntroductionStrategy){
     defer = null;
   };
   Gate.prototype.defaultResponseObject = function (queryobj) {
-    console.log('defaultResponseObject', queryobj);
+    //console.log('defaultResponseObject', queryobj);
     return ['f', queryobj];
   };
   return Gate;
