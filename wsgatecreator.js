@@ -10,12 +10,14 @@ function createWSGate(execlib,Gate){
     lib.Destroyable.call(this);
     this.ws = ws;
     this.mydestroyer = this.destroy.bind(this);
-    this.closerdestroyer = this.close.bind(this);
+    this.closeConsiderer = this.considerClose.bind(this);
     this.onSendBound = this.onSend.bind(this);
     this.sendRawBound = this.sendRaw.bind(this);
     this.pingWaiter = null;
     this.buffer = new StringBuffer();
     this.sending = false;
+    this.lastReceivedMoment = Date.now();
+    this.lastCheckedMoment = null;
     this.ws.on('close', this.mydestroyer);
     this.processPing();
   }
@@ -27,6 +29,8 @@ function createWSGate(execlib,Gate){
     if(!this.ws){
       return;
     }
+    this.lastCheckedMoment = null;
+    this.lastReceivedMoment = null;
     this.sending = null;
     if (this.buffer) {
       this.buffer.destroy();
@@ -36,7 +40,7 @@ function createWSGate(execlib,Gate){
     this.ws.removeAllListeners();
     this.sendRawBound = null;
     this.onSendBound = null;
-    this.closerdestroyer = null;
+    this.closeConsiderer = null;
     this.mydestroyer = null;
     if (this.pingWaiter) {
       lib.clearTimeout(this.pingWaiter);
@@ -46,18 +50,52 @@ function createWSGate(execlib,Gate){
     this.sending = false;
   };
   WSWrapper.prototype.processPing = function (ping) {
-    if (this.pingWaiter) {
-      lib.clearTimeout(this.pingWaiter);
-    }
-    this.pingWaiter = lib.runNext(this.closerdestroyer, PING_PERIOD*2);
+    this.doWaiter();
     if (ping) {
       this.send(['!', ping]);
     }
   };
+  WSWrapper.prototype.doWaiter = function () {
+    if (!this.ws) {
+      return;
+    }
+    if (this.pingWaiter) {
+      lib.clearTimeout(this.pingWaiter);
+    }
+    this.pingWaiter = lib.runNext(this.closeConsiderer, PING_PERIOD*2);
+  };
+  WSWrapper.prototype.considerClose = function () {
+    console.log('ping miss!');
+    if (!lib.isNumber(this.lastReceivedMoment)) {
+      console.log('lastReceivedMoment NaN, forget it');
+      return;
+    }
+    if (Date.now() - this.lastReceivedMoment > PING_PERIOD*2) {
+      console.log(Date.now() - this.lastReceivedMoment, '>', PING_PERIOD*2, 'will close');
+      this.close();
+      return;
+    }
+    if (!lib.isNumber(this.lastCheckedMoment)) {
+      console.log('establishing lastCheckedMoment and waiting again, forget it');
+      this.lastCheckedMoment = this.lastReceivedMoment;
+      this.doWaiter();
+      return;
+    }
+    if (this.lastCheckedMoment === this.lastReceivedMoment) {
+      console.log('lastCheckedMoment===lastReceivedMoment, that was', Date.now()-this.lastCheckedMoment, 'ago, will close');
+      this.close();
+      return;
+    }
+    console.log('setting lastCheckedMoment and waiting again, forget it');
+    this.lastCheckedMoment = this.lastReceivedMoment;
+    this.doWaiter();
+  };
   WSWrapper.prototype.close = function () {
+    console.trace();
+    console.log('WSWrapper closing');
     if (this.ws) {
       try {
-      this.ws.close();
+        this.ws.close();
       } catch(e) {
         this.destroy();
       }
@@ -143,7 +181,6 @@ function createWSGate(execlib,Gate){
   WSGate.prototype.serve = function(queryarry,wswrapper,usersession){
     if(!usersession){
       //console.log('no usersession, this is unacceptable for',require('util').inspect(queryarry,{depth:null}));
-      console.log('no usersession', usersession);
       wswrapper.send(this.defaultResponseObject(queryarry));
       wswrapper = null;
       queryarry = null;
@@ -162,7 +199,7 @@ function createWSGate(execlib,Gate){
     wsock.on('message',this.onMessage.bind(this,new WSWrapper(wsock)));
   };
   function wsErrorReporter(wswrapper,err){
-    console.log('wsErrorReporter', err);
+    //console.log('wsErrorReporter', err);
     wswrapper.send({err:err});
     wswrapper = null;
     //wsock.send(JSON.stringify({err:err}));
@@ -182,6 +219,7 @@ function createWSGate(execlib,Gate){
     if (!wswrapper.ws) {
       return;
     }
+    wswrapper.lastReceivedMoment = Date.now();
     if (queryobj[0] === '?') {
       wswrapper.processPing(queryobj[1]);
       return;
