@@ -85,7 +85,7 @@ function createAuthenticateJob (lib, mylib) {
       qlib.thenAny(user, this.onUserIntroduced.bind(this), this.reject.bind(this));
       return;
     }
-    console.log(process.pid,'no user found for session',session,'hash',resulthash,'on',resulthash.__service.modulename, resulthash.__service.destroyed ? 'alive' : 'dead');
+    console.log('no user found for session',this.sessionid,'hash',lib.pickExcept(resulthash,['__service']),'on',resulthash.__service.modulename, resulthash.__service.destroyed ? 'alive' : 'dead');
     this.resolve(null);
   };
   AuthenticateJob.prototype.onUserIntroduced = function (user) {

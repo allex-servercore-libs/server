@@ -65,18 +65,21 @@ function createWSGate(execlib,Gate){
     this.pingWaiter = lib.runNext(this.closeConsiderer, PING_PERIOD*2);
   };
   WSWrapper.prototype.considerClose = function () {
-    console.log('ping miss!');
+    var crit;
+    console.log('ping miss!', (this.ws && this.ws._socket) ? (this.ws._socket.remoteAddress+':'+this.ws._socket.remotePort) : '');
     if (!lib.isNumber(this.lastReceivedMoment)) {
       console.log('lastReceivedMoment NaN, forget it');
       return;
     }
-    if (Date.now() - this.lastReceivedMoment > PING_PERIOD*2) {
-      console.log(Date.now() - this.lastReceivedMoment, '>', PING_PERIOD*2, 'will close');
+    crit = Date.now() - this.lastReceivedMoment;
+    if (crit > PING_PERIOD*2) {
+      console.log(crit, '>', PING_PERIOD*2, 'will close');
       this.close();
       return;
     }
     if (!lib.isNumber(this.lastCheckedMoment)) {
-      console.log('establishing lastCheckedMoment and waiting again, forget it');
+      console.log('but the last message was received', crit, 'ms ago, so all is well');
+      console.log('establishing lastCheckedMoment and waiting again');
       this.lastCheckedMoment = this.lastReceivedMoment;
       this.doWaiter();
       return;
@@ -86,7 +89,7 @@ function createWSGate(execlib,Gate){
       this.close();
       return;
     }
-    console.log('setting lastCheckedMoment and waiting again, forget it');
+    console.log('but the last message was received', crit, 'ms ago, so all is well');
     this.lastCheckedMoment = this.lastReceivedMoment;
     this.doWaiter();
   };
