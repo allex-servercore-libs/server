@@ -40,10 +40,16 @@ function createGate(execlib,IntroductionStrategy){
     this.destroy();
   };
   Gate.prototype.authenticate = function(identity, arg1) {
+    if (!this.jobs) {
+      return q(null);
+    }
     return this.jobs.run('.', new jobs.AuthenticateJob(this, identity, arg1));
   };
   Gate.prototype.createSession = function(user,sessionid,arg1){
     var usersession;
+    if (!this.sessions) {
+      return null;
+    }
     if (this.sessions.get(sessionid)) {
       return null;
     }
@@ -58,7 +64,7 @@ function createGate(execlib,IntroductionStrategy){
     return usersession;
   };
   Gate.prototype.handleCreatedUserSession = function (usersession) {
-    if (usersession && usersession.session) {
+    if (this.sessions && usersession && usersession.session) {
       this.sessions.add(usersession.session,usersession);
     }
   };
