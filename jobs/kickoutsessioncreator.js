@@ -30,7 +30,7 @@ function createKickOutSessionJob (lib, mylib) {
     return ok.val;
   };
   KickOutSessionJob.prototype.onSessionDead = function () {
-    if (!this.okToProceeed()) {
+    if (!this.okToProceed()) {
       return;
     }
     if (this.sessionuser && this.sessionuser.destroyed && !this.sessionuser.aboutToDie) {
