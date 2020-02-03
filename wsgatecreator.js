@@ -5,11 +5,14 @@ function createWSGate(execlib,Gate){
     WebSocket = lib.ws,
     PING_PERIOD = 10*lib.intervals.Second;
 
+  //var _wswid=0;
+
   function WSWrapper(ws){
-    //console.log('New WebSocket connection',wsock._socket.remoteAddress);
+    //this._id = (++_wswid);
+    //console.log('New WSWrapper', this._id, ws._socket.remoteAddress);
     lib.Destroyable.call(this);
     this.ws = ws;
-    this.mydestroyer = this.destroy.bind(this);
+    this.closer = this.onClose.bind(this);
     this.closeConsiderer = this.considerClose.bind(this);
     this.onSendBound = this.onSend.bind(this);
     this.sendRawBound = this.sendRaw.bind(this);
@@ -18,14 +21,14 @@ function createWSGate(execlib,Gate){
     this.sending = false;
     this.lastReceivedMoment = Date.now();
     this.lastCheckedMoment = null;
-    this.ws.on('close', this.mydestroyer);
+    this.ws.on('close', this.closer);
     this.processPing();
   }
   lib.inherit(WSWrapper, lib.Destroyable);
   WSWrapper.prototype.__cleanUp = function () {
     //console.trace();
     //console.log('WSWrapper about to die', this.localPort());
-    //console.log('New WebSocket connection',wsock._socket.remoteAddress);
+    //console.log('WSWrapper', this._id, 'dying');
     if(!this.ws){
       return;
     }
@@ -36,12 +39,12 @@ function createWSGate(execlib,Gate){
       this.buffer.destroy();
     }
     this.buffer = null;
-    this.ws.removeListener('close', this.mydestroyer);
+    this.ws.removeListener('close', this.closer);
     this.ws.removeAllListeners();
     this.sendRawBound = null;
     this.onSendBound = null;
     this.closeConsiderer = null;
-    this.mydestroyer = null;
+    this.closer = null;
     if (this.pingWaiter) {
       lib.clearTimeout(this.pingWaiter);
     }
@@ -63,6 +66,10 @@ function createWSGate(execlib,Gate){
       lib.clearTimeout(this.pingWaiter);
     }
     this.pingWaiter = lib.runNext(this.closeConsiderer, PING_PERIOD*2);
+  };
+  WSWrapper.prototype.onClose = function () {
+    //console.log(this.constructor.name, this._id, 'finally closed');
+    this.destroy();
   };
   WSWrapper.prototype.considerClose = function () {
     var crit;
@@ -94,8 +101,8 @@ function createWSGate(execlib,Gate){
     this.doWaiter();
   };
   WSWrapper.prototype.close = function () {
-    console.trace();
-    console.log('WSWrapper closing');
+    //console.trace();
+    //console.log('WSWrapper', this._id, 'closing');
     if (this.ws) {
       try {
         this.ws.close();
@@ -193,7 +200,8 @@ function createWSGate(execlib,Gate){
       usersession.handleIncoming(queryarry)
     }
     catch (e) {
-      wsErrorReporter(wswrapper, e);
+      //wsErrorReporter(wswrapper, e);
+      this.defaultResponseObject(queryarry);
     }
     wswrapper = null;
     queryarry = null;
@@ -208,6 +216,9 @@ function createWSGate(execlib,Gate){
     //wsock.send(JSON.stringify({err:err}));
   }
   WSGate.prototype.onMessage = function(wswrapper,message,flags){
+    if (!(wswrapper && wswrapper.ws)) {
+      return;
+    }
     StringBuffer.consumeString(message, this.onMessageUnit.bind(this, wswrapper, flags));
   };
   WSGate.prototype.onMessageUnit = function (wswrapper,flags,queryobj){
@@ -216,7 +227,8 @@ function createWSGate(execlib,Gate){
     }
     catch(e){
       console.error('JSON.parse error', e, 'on', queryobj);
-      wsErrorReporter(wswrapper,e);
+      //wsErrorReporter(wswrapper,e);
+      this.defaultResponseObject(queryobj);
       return;
     }
     if (!wswrapper.ws) {
@@ -234,8 +246,10 @@ function createWSGate(execlib,Gate){
     }
     this.authenticate(identity,wswrapper).done(
       this.serve.bind(this,queryobj,wswrapper),
-      wsErrorReporter.bind(null,wswrapper)
+      //wsErrorReporter.bind(null,wswrapper)
+      this.defaultResponseObject.bind(this, queryobj)
     );
+    queryobj = null;
   };
   WSGate.prototype.communicationType = 'ws';
 

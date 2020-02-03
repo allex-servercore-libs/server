@@ -5,6 +5,25 @@ function createGate(execlib,IntroductionStrategy){
     qlib = lib.qlib,
     jobs = require('./jobs')(lib);
 
+  /* for test 
+  function SessionsMap (parentctorname) {
+    lib.Map.call(this);
+    this.parentctorname = parentctorname;
+  }
+  lib.inherit(SessionsMap, lib.Map);
+  SessionsMap.prototype.add = function (sessid, sess) {
+    if (sess.wswrapper) {
+      console.trace();
+      console.log(this.parentctorname, 'adding session', sessid, 'from', sess.wswrapper._id);
+    }
+    if (!(sess && sess.aboutToDie)) {
+      console.trace();
+      console.error('session already dying?');
+    }
+    return lib.Map.prototype.add.call(this, sessid, sess);
+  };
+  */
+
   function Gate(service,authenticator){
     if (!(service && service.destroyed)) {
       return;
@@ -13,6 +32,7 @@ function createGate(execlib,IntroductionStrategy){
     this.authenticatorSink = authenticator;
     this.service.destroyed.attachForSingleShot(this.destroy.bind(this));
     this.sessions = new lib.Map();
+    //this.sessions = new SessionsMap(this.constructor.name);
     this.introducer = new IntroductionStrategy();
     this.jobs = new qlib.JobCollection();
   }

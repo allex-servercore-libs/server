@@ -34,9 +34,10 @@ function createAuthenticateJob (lib, mylib) {
       usersession = this.destroyable.sessions.get(this.sessionid);
       if (usersession) {
         (new mylib.KickOutSessionJob(this.destroyable, usersession)).go().then(
-          this.onResolvedUser.bind(this),
-          this.reject.bind(this)
+          this.onResolvedUser.bind(this, reservedsession),
+          this.resolve.bind(this, null)
         );
+        reservedsession = null;
         return;
       }
       this.onResolvedUser(reservedsession);
@@ -45,8 +46,10 @@ function createAuthenticateJob (lib, mylib) {
     usersession = this.destroyable.sessions.get(this.sessionid);
     if(usersession){
       if(!(usersession.user && usersession.user.__service)){
-        console.error('usersession from gate sessions has got no user and user.__service');
+        console.error('problem', usersession);
+        console.error('for', this.sessionid, 'usersession from gate sessions has got no user and user.__service');
         this.resolve(null);
+        //this.reject(new lib.Error('INVALID_SESSION', this.sessionid));
         return;
       }
       this.resolve(usersession);
@@ -60,11 +63,13 @@ function createAuthenticateJob (lib, mylib) {
     if(this.destroyable.authenticatorSink){
       this.destroyable.authenticatorSink.call('resolve', this.identity[1]).done(
         this.onResolvedUser.bind(this),
-        this.reject.bind(this)
+        //this.reject.bind(this)
+        this.resolve.bind(this, null)
       );
     }else{
       console.error('gate has got no authenticatorSink');
       this.resolve(null);
+      //this.reject(new lib.Error('ALREADY_DESTROYED', this.sessionid));
     }
   };
   AuthenticateJob.prototype.onResolvedUser = function(resulthash){
@@ -72,21 +77,33 @@ function createAuthenticateJob (lib, mylib) {
     if (!this.okToProceed()) {
       return;
     }
-    if(!resulthash){
-      console.error('onResolvedUser has no resulthash', resulthash);
+      if(!resulthash){
+        console.error('for', this.sessionid, 'onResolvedUser has no resulthash', resulthash);
+        this.resolve(null);
+        //this.reject(new lib.Error('INVALID_USER', this.sessionid));
+        return;
+      }
+      if(!resulthash.__service){
+        try {
+          resulthash.__service = this.destroyable.service;
+        } catch (e) {
+          //console.error(e);
+          if (this.destroyable.authenticatorSink) {
+            console.log('my authenticatorSink', this.destroyable.authenticatorSink.modulename, this.destroyable.authenticatorSink.role);
+          } else {
+            console.log('no authenticatorSink at this moment');
+          }
+          throw e;
+        }
+      }
+      user = resulthash.__service.introduceUser(resulthash);
+      if(user){
+        //qlib.thenAny(user, this.onUserIntroduced.bind(this), this.reject.bind(this));
+        qlib.thenAny(user, this.onUserIntroduced.bind(this), this.resolve.bind(this, null));
+        return;
+      }
+      console.log('no user found for session',this.sessionid,'hash',lib.pickExcept(resulthash,['__service']),'on',resulthash.__service.modulename, resulthash.__service.destroyed ? 'alive' : 'dead');
       this.resolve(null);
-      return;
-    }
-    if(!resulthash.__service){
-      resulthash.__service = this.destroyable.service;
-    }
-    user = resulthash.__service.introduceUser(resulthash);
-    if(user){
-      qlib.thenAny(user, this.onUserIntroduced.bind(this), this.reject.bind(this));
-      return;
-    }
-    console.log('no user found for session',this.sessionid,'hash',lib.pickExcept(resulthash,['__service']),'on',resulthash.__service.modulename, resulthash.__service.destroyed ? 'alive' : 'dead');
-    this.resolve(null);
   };
   AuthenticateJob.prototype.onUserIntroduced = function (user) {
     var s;
