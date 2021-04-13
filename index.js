@@ -1,11 +1,11 @@
-function createServer(execlib, SessionIntroductor){
+function createServer(execlib, signalrlib, SessionIntroductor){
   'use strict';
   var lib = execlib.lib, q = lib.q, Map = lib.Map,
       fs = require('fs'),
       execSuite = execlib.execSuite,
       registry = execSuite.registry,
       Gate = require('./gatecreator')(execlib,SessionIntroductor),
-      HttpGate = require('./httpgatecreator')(execlib,Gate),
+      HttpGate = require('./httpgatecreator')(execlib,signalrlib,Gate),
       SocketGate = require('./socketgatecreator')(execlib,Gate),
       WSGate = require('./wsgatecreator')(execlib,Gate),
       ParentProcGate = require('./parentprocgatecreator')(execlib,Gate),
@@ -94,9 +94,15 @@ function createServer(execlib, SessionIntroductor){
   Server.prototype.serveHttp = function(defer,config,authenticator){
     ///TODO: support https ...
     var gate = new HttpGate(this.service,authenticator);
+    /* server-unaware implementation
     require(config.protocol.name)
       .createServer(gate.handler(config))
       .listen(config.port);
+      */
+    gate.startListeningOn(
+      require(config.protocol.name).createServer(),
+      config
+    );
     defer.resolve(gate);
     defer = null;
     config = null;
