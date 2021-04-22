@@ -26,6 +26,9 @@ function createKickOutSessionJob (lib, mylib) {
     this.sessiontokickout.destroyed.attachForSingleShot(
       this.onSessionDead.bind(this)
     );
+    if (!this.sessiontokickout.terminate) {
+      console.error('DAFUQ is', this.sessiontokickout);
+    }
     this.sessiontokickout.terminate();
     return ok.val;
   };

@@ -206,7 +206,6 @@ function createServer(execlib, signalrlib, SessionIntroductor){
         d.resolve(activationpack);
       }
       catch(e){
-        console.error(e.stack);
         console.error(e);
         d.reject('Supersink for service named '+instancename+' could not be registered');
       }
@@ -324,7 +323,6 @@ function createServer(execlib, signalrlib, SessionIntroductor){
         defer.reject.bind(defer)
       );
     } catch (e) {
-      console.error(e.stack);
       console.error(e);
       defer.reject(e);
     }
@@ -341,7 +339,6 @@ function createServer(execlib, signalrlib, SessionIntroductor){
         defer.reject.bind(defer)
       );
     } catch(e) {
-      console.error(e.stack);
       console.error(e);
       defer.reject(e);
     }
@@ -358,7 +355,6 @@ function createServer(execlib, signalrlib, SessionIntroductor){
       );
     }
     catch(e){
-      console.error(e.stack);
       console.error(e);
       d.reject(e);
     }
@@ -378,8 +374,8 @@ function createServer(execlib, signalrlib, SessionIntroductor){
     });
     return d.promise;
     } catch(e) {
-      console.error(e.stack);
       console.error(e);
+      return q.reject(e);
     }
   }
   function acquireAuthSink(strategies){
