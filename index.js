@@ -29,6 +29,7 @@ function createServer(execlib, signalrlib, SessionIntroductor){
   }
     
   process.on('exit',onExit);
+  process.on('SIGINT',onExit);
     
   function onConnectError(serv,port,err){
     if(err.code==='ECONNREFUSED'){
