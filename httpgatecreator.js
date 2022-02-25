@@ -14,6 +14,7 @@ function createHttpGate(execlib,signalrlib,Gate){
   lib.inherit(HttpGate,Gate);
   HttpGate.prototype.destroy = function () {
     if (this.signalRHandler) {
+      this.signalRHandler.close();
       this.signalRHandler.destroy();
     }
     this.signalRHandler = null;
