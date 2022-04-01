@@ -179,6 +179,7 @@ function createWSGate(execlib,Gate){
     this.server = new WebSocket.Server({port:wsportdescriptor.port});
     this.server.on('connection',this.onConnection.bind(this));
     process.on('SIGINT', this.destroy.bind(this));
+    process.on('SIGTERM', this.destroy.bind(this));
   }
   lib.inherit(WSGate,Gate);
   WSGate.prototype.destroy = function(){

@@ -10,6 +10,7 @@ function createHttpGate(execlib,signalrlib,Gate){
   function HttpGate(service,authenticator){
     Gate.call(this,service,authenticator);
     this.signalRHandler = new signalrlib.ServerHandler(this.onInvocationNeeded.bind(this));
+    this._listeningPort = null;
   }
   lib.inherit(HttpGate,Gate);
   HttpGate.prototype.destroy = function () {
@@ -17,8 +18,15 @@ function createHttpGate(execlib,signalrlib,Gate){
       this.signalRHandler.close();
       this.signalRHandler.destroy();
     }
+    this._listeningPort = null;
     this.signalRHandler = null;
     Gate.prototype.destroy.call(this);
+  };
+  HttpGate.prototype.close = function () {
+    if (this.signalRHandler) {
+      this.signalRHandler.clearAll();
+    }
+    this.destroy();
   };
   HttpGate.prototype.onInvocationNeeded = function (channel, target, args) {
     if (target === 'allexjs') {
@@ -70,8 +78,12 @@ function createHttpGate(execlib,signalrlib,Gate){
   };
   HttpGate.prototype.startListeningOn = function (server, options){
     this.signalRHandler.startHandling(server);
+    this._listeningPort = options.port;
     server.listen(options.port); 
     console.log('server listening on', options.port);
+  };
+  HttpGate.prototype.listeningPort = function () {
+    return this._listeningPort;
   };
 
   HttpGate.prototype.communicationType = 'http';

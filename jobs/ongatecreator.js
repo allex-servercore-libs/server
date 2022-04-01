@@ -12,16 +12,13 @@ function createJobOnGate (lib, mylib) {
       return false;
     }
     if (!this.destroyable.service) {
-      console.error('service instance was not found on '+this.destroyable.constructor.name+', assumed dead');
-      return false;
+      throw new lib.Error('SERVICE_INSTANCE_NOT_FOUND', 'service instance was not found on '+this.destroyable.constructor.name+', assumed dead');
     }
     if (!this.destroyable.service.state) {
-      console.error('service instance found on '+this.destroyable.constructor.name+', has no state, assumed dead');
-      return false;
+      throw new lib.Error('SERVICE_INSTANCE_FOUND_HAS_NO_STATE', 'service instance found on '+this.destroyable.constructor.name+', has no state, assumed dead');
     }
     if (this.destroyable.service.state.get('closed')) {
-      console.error('service instance found on '+this.destroyable.constructor.name+', is in "closed" state');
-      return false;
+      throw new lib.Error('SERVICE_INSTANCE_FOUND_IN_CLOSED_STATE', 'service instance found on '+this.destroyable.constructor.name+', is in "closed" state');
     }
     return true;
   };

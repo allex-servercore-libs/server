@@ -9,7 +9,7 @@ function createInProcGate(execlib,Gate){
   InProcGate.prototype.processMessage = function(queryarry,requester){
     this.authenticate(queryarry[1],requester).done(
       this.serveInProc.bind(this,queryarry),
-      defaultErrorProc
+      //defaultErrorProc
     );
   };
   InProcGate.prototype.serveInProc = function(queryarry,usersession){

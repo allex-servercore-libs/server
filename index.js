@@ -28,8 +28,9 @@ function createServer(execlib, signalrlib, SessionIntroductor){
     killAllListeningServers();
   }
     
-  process.on('exit',onExit);
   process.on('SIGINT',onExit);
+  process.on('SIGTERM',onExit);
+  process.on('exit',onExit);
     
   function onConnectError(serv,port,err){
     if(err.code==='ECONNREFUSED'){
@@ -104,6 +105,7 @@ function createServer(execlib, signalrlib, SessionIntroductor){
       require(config.protocol.name).createServer(),
       config
     );
+    _listeningServers.add(gate.listeningPort(), gate); //so that gate can be .close()d eventually
     defer.resolve(gate);
     defer = null;
     config = null;
