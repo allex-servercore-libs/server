@@ -7,18 +7,18 @@ function createHttpGate(execlib,signalrlib,Gate){
   'use strict';
   var lib = execlib.lib;
 
-  function HttpGate(service,authenticator){
-    Gate.call(this,service,authenticator);
-    this.signalRHandler = new signalrlib.ServerHandler(this.onInvocationNeeded.bind(this));
+  function HttpGate(service,options,authenticator){
+    Gate.call(this,service,options,authenticator);
+    this.signalRHandler = new signalrlib.ServerHandler(this.options ? this.options.options : null, this.onInvocationNeeded.bind(this));
     this._listeningPort = null;
   }
   lib.inherit(HttpGate,Gate);
   HttpGate.prototype.destroy = function () {
+    this._listeningPort = null;
     if (this.signalRHandler) {
       this.signalRHandler.close();
       this.signalRHandler.destroy();
     }
-    this._listeningPort = null;
     this.signalRHandler = null;
     Gate.prototype.destroy.call(this);
   };
@@ -26,6 +26,7 @@ function createHttpGate(execlib,signalrlib,Gate){
     if (this.signalRHandler) {
       this.signalRHandler.clearAll();
     }
+    this.signalRHandler = null;
     this.destroy();
   };
   HttpGate.prototype.onInvocationNeeded = function (channel, target, args) {

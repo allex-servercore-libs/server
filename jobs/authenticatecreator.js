@@ -67,7 +67,7 @@ function createAuthenticateJob (lib, mylib) {
         this.resolve.bind(this, null)
       );
     }else{
-      console.error('gate has got no authenticatorSink');
+      console.error('gate', this.destroyable.constructor.name, 'has got no authenticatorSink');
       this.resolve(null);
       //this.reject(new lib.Error('ALREADY_DESTROYED', this.sessionid));
     }

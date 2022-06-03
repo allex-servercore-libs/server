@@ -1,8 +1,8 @@
 function createInProcGate(execlib,Gate){
   'use strict';
   var lib = execlib.lib, q = lib.q, defaultErrorProc = console.error.bind(console, 'InProcGate processMessage error');
-  function InProcGate(service,authenticator){
-    Gate.call(this,service,authenticator);
+  function InProcGate(service,options,authenticator){
+    Gate.call(this,service,options,authenticator);
   }
   lib.inherit(InProcGate,Gate);
 

@@ -1,8 +1,8 @@
 function createParentProcGate(execlib,Gate){
   'use strict';
   var lib = execlib.lib, q = lib.q;
-  function ParentProcGate(service,authenticator){
-    Gate.call(this,service,authenticator);
+  function ParentProcGate(service,options,authenticator){
+    Gate.call(this,service,options,authenticator);
   }
   lib.inherit(ParentProcGate,Gate);
   function procErrorReporter(err){

@@ -24,11 +24,18 @@ function createGate(execlib,IntroductionStrategy){
   };
   */
 
-  function Gate(service,authenticator){
+  function Gate(service,options,authenticator){
+    /*
+    console.log('new', this.constructor.name);
+    console.log('service', service);
+    console.log('options', options);
+    console.log('authenticator', authenticator);
+    */
     if (!(service && service.destroyed)) {
       return;
     }
     this.service = service;
+    this.options = options;
     this.authenticatorSink = authenticator;
     this.service.destroyed.attachForSingleShot(this.destroy.bind(this));
     this.sessions = new lib.Map();
@@ -53,6 +60,7 @@ function createGate(execlib,IntroductionStrategy){
       this.authenticatorSink.destroy();
     }
     this.authenticatorSink = null;
+    this.options = null;
     this.service = null;
   };
   Gate.prototype.onAuthenticatorDead = function(){

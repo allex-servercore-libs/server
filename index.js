@@ -19,13 +19,21 @@ function createServer(execlib, signalrlib, SessionIntroductor){
 
   function killAllListeningServers(){
     _listeningServers.traverse(function(serv){
+      if (!lib.isFunction(serv.close)) {
+        console.log('Y no close?', serv);
+        return;
+      }
       serv.close();
     });
   }
     
   function onExit(err){
     //console.log('onExit should kill', _listeningServers.count, 'servers');
-    killAllListeningServers();
+    try {
+      killAllListeningServers();
+    } catch(e) {
+      console.error('Error in killAllListeningServers', e);
+    }
   }
     
   process.on('SIGINT',onExit);
@@ -73,7 +81,7 @@ function createServer(execlib, signalrlib, SessionIntroductor){
     Map.prototype.destroy.call(this);
   };
   Server.prototype.serveParentProc = function(defer,portdescriptor,authusersink){
-    var gate = new ParentProcGate(this.service,authusersink);
+    var gate = new ParentProcGate(this.service,portdescriptor,authusersink);
     process.on('message',gate.handler());
     SessionIntroductor.introduce(makeSuperUserIdentity(),process.env.parentProcessID);
     process.send({child_init:process.pid});
@@ -90,12 +98,12 @@ function createServer(execlib, signalrlib, SessionIntroductor){
     return d.promise;
   };
   Server.prototype.serveInProc = function(authenticator){
-    var gate = new InProcGate(this.service,authenticator);
+    var gate = new InProcGate(this.service,null,authenticator);
     return gate;
   };
   Server.prototype.serveHttp = function(defer,config,authenticator){
     ///TODO: support https ...
-    var gate = new HttpGate(this.service,authenticator);
+    var gate = new HttpGate(this.service,config,authenticator);
     /* server-unaware implementation
     require(config.protocol.name)
       .createServer(gate.handler(config))
@@ -111,15 +119,17 @@ function createServer(execlib, signalrlib, SessionIntroductor){
     config = null;
   };
   Server.prototype._serveHttp = function(portdescriptor){
-    var d = q.defer();
+    var d = q.defer(), ret = d.promise;
     acquireAuthSink(portdescriptor.strategies).done(
       this.serveHttp.bind(this,d,portdescriptor),
       d.reject.bind(d)
     );
-    return d.promise;
+    d = null;
+    portdescriptor = null;
+    return ret;
   };
   Server.prototype.serveSocket = function(defer,options,authusersink){
-    var gate = new SocketGate(this.service,authusersink);
+    var gate = new SocketGate(this.service,options,authusersink);
     startServer(require('net')
       .createServer(gate.handler()),
       options.port);
@@ -137,7 +147,8 @@ function createServer(execlib, signalrlib, SessionIntroductor){
     return d.promise;
   };
   Server.prototype.serveWS = function(defer,options,authusersink){
-    var gate = new WSGate(this.service,authusersink,options);
+    var gate = new WSGate(this.service,options,authusersink,options);
+    _listeningServers.add(options.port, gate);
     defer.resolve(gate);
     defer = null;
     options = null;

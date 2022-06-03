@@ -174,21 +174,27 @@ function createWSGate(execlib,Gate){
     return this.ws ? this.ws._socket._peername.port : 0;
   };
 
-  function WSGate(service,authenticator,wsportdescriptor){
-    Gate.call(this,service,authenticator);
-    this.server = new WebSocket.Server({port:wsportdescriptor.port});
-    this.server.on('connection',this.onConnection.bind(this));
-    process.on('SIGINT', this.destroy.bind(this));
-    process.on('SIGTERM', this.destroy.bind(this));
+  function WSGate(service,options,authenticator,wsportdescriptor){
+    Gate.call(this,service,options,authenticator);
+    this.server = new WebSocket.Server(lib.extend({port:wsportdescriptor.port}, this.options ? this.options.server : {}));
+    this.onConnectionBound = this.onConnection.bind(this);
+    this.server.on('connection',this.onConnectionBound);
   }
   lib.inherit(WSGate,Gate);
   WSGate.prototype.destroy = function(){
-    if(!this.server){
+    if(this.server){
+      if (this.onConnectionBound) {
+        this.server.off('connection', this.onConnectionBound);
+      }
+      this.server.close(console.log.bind(console, 'WSGate server closed'));
       return;
     }
-    this.server.close();
+    this.onConnectionBound = null;
     this.server = null;
     Gate.prototype.destroy.call(this);
+  };
+  WSGate.prototype.close = function () {
+    this.destroy();
   };
   WSGate.prototype.serve = function(queryarry,wswrapper,usersession){
     if(!usersession){

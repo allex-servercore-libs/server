@@ -1,8 +1,8 @@
 function createSocketGate(execlib,Gate){
   'use strict';
   var lib = execlib.lib,talkerSpawner = execlib.execSuite.talkerSpawner;
-  function SocketGate(service,authenticator){
-    Gate.call(this,service,authenticator);
+  function SocketGate(service,options,authenticator){
+    Gate.call(this,service,options,authenticator);
   }
   lib.inherit(SocketGate,Gate);
   SocketGate.prototype.serve = function(queryarry,talker,usersession){
