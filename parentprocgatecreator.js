@@ -5,6 +5,7 @@ function createParentProcGate(execlib,Gate){
     Gate.call(this,service,options,authenticator);
   }
   lib.inherit(ParentProcGate,Gate);
+
   function procErrorReporter(err){
     console.log('procErrorReporter',err);
     if(process.connected){
@@ -33,6 +34,7 @@ function createParentProcGate(execlib,Gate){
       this.serve.bind(this,queryarry),
       procErrorReporter
     );
+    queryarry = null;
   };
   ParentProcGate.prototype.handler = function(){
     return this.handle.bind(this);

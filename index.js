@@ -1,6 +1,7 @@
 function createServer(execlib, signalrlib, SessionIntroductor){
   'use strict';
   var lib = execlib.lib, q = lib.q, Map = lib.Map,
+      qlib = lib.qlib,
       fs = require('fs'),
       execSuite = execlib.execSuite,
       registry = execSuite.registry,
@@ -9,10 +10,9 @@ function createServer(execlib, signalrlib, SessionIntroductor){
       SocketGate = require('./socketgatecreator')(execlib,Gate),
       WSGate = require('./wsgatecreator')(execlib,Gate),
       ParentProcGate = require('./parentprocgatecreator')(execlib,Gate),
-      InProcGate = require('./inprocgatecreator')(execlib,Gate);
-  function makeSuperUserIdentity(){
-    return {name:'*',role:'service'};
-  }
+      InProcGate = require('./inprocgatecreator')(execlib,Gate),
+      helpers = require('./helpers')(execlib),
+      jobcores = require('./jobcores')(execlib, helpers);
 
 
   var _listeningServers = new Map();
@@ -23,7 +23,11 @@ function createServer(execlib, signalrlib, SessionIntroductor){
         console.log('Y no close?', serv);
         return;
       }
-      serv.close();
+      try {
+        serv.close();
+      } catch (e) {
+        console.error('Error', e, 'while trying to close');
+      }
     });
   }
     
@@ -80,22 +84,20 @@ function createServer(execlib, signalrlib, SessionIntroductor){
     this.service = null;
     Map.prototype.destroy.call(this);
   };
-  Server.prototype.serveParentProc = function(defer,portdescriptor,authusersink){
+  Server.prototype.serveParentProc = function(portdescriptor,authusersink){
     var gate = new ParentProcGate(this.service,portdescriptor,authusersink);
     process.on('message',gate.handler());
-    SessionIntroductor.introduce(makeSuperUserIdentity(),process.env.parentProcessID);
+    SessionIntroductor.introduce(helpers.makeSuperUserIdentity(),process.env.parentProcessID);
     process.send({child_init:process.pid});
-    defer.resolve(gate);
-    defer = null;
     portdescriptor = null;
+    return gate;
   };
   Server.prototype._serveParentProc = function(portdescriptor){
-    var d = q.defer();
-    acquireAuthSink(portdescriptor.strategies).done(
-      this.serveParentProc.bind(this,d,portdescriptor),
-      d.reject.bind(d)
+    var ret = acquireAuthSink(portdescriptor.strategies).then(
+      this.serveParentProc.bind(this,portdescriptor)
     );
-    return d.promise;
+    portdescriptor = null;
+    return ret;
   };
   Server.prototype.serveInProc = function(authenticator){
     var gate = new InProcGate(this.service,null,authenticator);
@@ -254,213 +256,25 @@ function createServer(execlib, signalrlib, SessionIntroductor){
     defer = null;
   }
 
-  function onSinkDestroyed () {
-    //console.log('sink dead');
-    this.sinkdestroyedlistener.destroy();
-    this.sinkdestroyedlistener = null;
-  }
 
-  function onServiceDestroyed () {
-    //console.log('service dead');
-    this.servicedestroyedlistener.destroy();
-    this.servicedestroyedlistener = null;
-    this.deathdefer.resolve('ok');
-    this.deathdefer = null;
-  }
-
-  function terminalizeSink(service,sink) {
-    var sss = {
-      closesent: false,
-      servicedestroyedlistener: null,
-      deathdefer: q.defer(),
-      sinkdestroyedlistener: null
-    },
-    ssd = sink.destroy;
-    sss.servicedestroyedlistener = service.destroyed.attach(onServiceDestroyed.bind(sss));
-    sss.sinkdestroyedlistener = sink.destroyed.attach(onSinkDestroyed.bind(sss));
-    function _ssd() {
-      var sssp;
-      if (!(ssd && sss && sink)) {
-        return;
-      }
-      sssp = sss.deathdefer.promise;
-      if(!sss.closesent){
-        sss.closesent = true;
-        //console.log('sink destroy phase #1: close service', service.modulename);
-        service.close();
-        service = null;
-        return sssp;
-      }
-      //console.log('sink destroy phase #2: destroy sink', sink.modulename);
-      ssd.apply(sink, arguments);
-      sink.destroy = lib.dummyFunc;
-      ssd = null;
-      sss = null;
-      sink = null;
-      return sssp;
-    };
-    sink.destroy = _ssd;
-  }
-
-  function onSuperSink(defer,service,server,supersink){
-    //if (service.modulename !== '.authentication') {
-      terminalizeSink(service, supersink);
-    //}
-    service.onSuperSink(supersink);
-    defer.resolve({server:server,supersink:supersink});
-    defer = null;
-    service = null;
-    server = null;
-  }
-  function servicePropHashProducer(originalprophash) {
-    var ret = originalprophash || {};
-    ret.__readyToAcceptUsers = q.defer();
-    originalprophash = null;
-    return ret;
-  }
-  function onServiceReadyToAcceptUsers (service, authsink, defer) {
-    if (!(service && service.destroyed)) {
-      defer.reject(new lib.Error('SERVICE_DEAD_ON_DESTRUCTION'));
-      service = null;
-      authsink = null;
-      defer = null;
-      return;
-    }
-    try {
-      var server = new Server(service),
-        superuseridentity = makeSuperUserIdentity(),
-        gate = server.serveInProc(authsink || service.extendTo(new FakeAuthenticatorSink(superuseridentity))),
-        user = service.introduceUser(superuseridentity),
-        sessionid = SessionIntroductor.introduce(superuseridentity);
-      registry.spawn({},gate,{},sessionid).done(
-        onSuperSink.bind(null,defer,service,server),
-        defer.reject.bind(defer)
-      );
-    } catch (e) {
-      console.error(e);
-      defer.reject(e);
-    }
-    service = null;
-    authsink = null;
-    defer = null;
-  }
-  function onServicePackForActivate(servicedescriptor, authsink, defer, service){
-    try{
-      var prophash = servicePropHashProducer(servicedescriptor.propertyhash),
-        service = new service(prophash);
-      prophash.__readyToAcceptUsers.promise.done(
-        onServiceReadyToAcceptUsers.bind(null, service, authsink, defer),
-        defer.reject.bind(defer)
-      );
-    } catch(e) {
-      console.error(e);
-      defer.reject(e);
-    }
-    servicedescriptor = null;
-    authsink = null;
-    defer = null;
-  }
-  function activate(servicedescriptor,authsink){
-    var d = q.defer();
-    try{
-      registry.registerServerSide(servicedescriptor.modulename).done(
-        onServicePackForActivate.bind(null, servicedescriptor, authsink, d),
-        d.reject.bind(d)
-      );
-    }
-    catch(e){
-      console.error(e);
-      d.reject(e);
-    }
-    servicedescriptor = null;
-    return d.promise;
-  };
-
-  function getAuthUserInterface(activationpack){
-    /*
-    return activationpack.supersink.subConnect('.',{name:'~',role:'user'},{});
-    */
-    try {
-    var d = q.defer();
-    activationpack.supersink.subConnect('.',{name:'~',role:'user'},{}).done(function (sink){
-      terminalizeSink(activationpack.server.service, sink);
-      d.resolve(sink);
-    });
-    return d.promise;
-    } catch(e) {
-      console.error(e);
-      return q.reject(e);
-    }
-  }
   function acquireAuthSink(strategies){
-    return activate({
-      modulename:'.authentication',
-      propertyhash:{
-        strategies:strategies
-      }
-    }).then(
-      getAuthUserInterface
-    );
+    return qlib.newSteppedJobOnSteppedInstance(
+      new jobcores.AuthSinkAcquirer(
+        _listeningServers,
+        registry,
+        SessionIntroductor,
+        Server,
+        strategies
+      )
+    ).go();
   }
 
-  Server.start = function(serverdescriptor){
-    var ports = serverdescriptor.ports,
-        servicedescriptor = serverdescriptor.service,
-        modulename = servicedescriptor.modulename,
-        instancename = servicedescriptor.instancename,
-        prophash = servicedescriptor.propertyhash || {},
-        roleremapping = servicedescriptor.roleremapping,
-        d = q.defer(),
-        instance = registry.superSinks.get(instancename);
-    if(!modulename){
-      d.reject('No modulename in servicedescriptor');
-    }else{
-      if (instance) {
-        return q(instance);
-      }
-      acquireAuthSink({
-        roleremapper:roleremapping
-      }).then(
-        activate.bind(null,servicedescriptor),
-        function(reason){
-          console.error('no supersink for',modulename,'?',reason);
-          throw reason;
-        }
-      ).then(
-        registerMasterSink.bind(null,instancename),
-        function(reason){
-          console.error(process.pid, 'supersink for',instancename,'from',modulename,'could not be registered?',reason);
-          throw reason;
-        }
-      ).then(
-        startPorts.bind(null,ports),
-        function(reason){
-          console.error(process.pid, 'could not start ports',ports,'for',instancename,'from',modulename,'?',reason);
-          throw reason;
-        }
-      ).done(
-        d.resolve.bind(d),
-        d.reject.bind(d)
-      );
-    }
-    return d.promise;
-  };
-
-  function FakeAuthenticatorSink(userhash){
-    this.userhash = userhash;
+  Server.start = function (serverdescriptor) {
+    var ret = qlib.newSteppedJobOnSteppedInstance(
+      new jobcores.ServiceStarter(_listeningServers, serverdescriptor, registry, SessionIntroductor, Server)
+    ).go();
+    return ret.then(null, function (reason) {console.error('error in start', reason); throw reason;});
   }
-  FakeAuthenticatorSink.prototype.destroy = function(){
-    this.userhash = null;
-  };
-  FakeAuthenticatorSink.prototype.call = function(command,credentials){
-    var d = q.defer();
-    if(command!=='resolve'){
-      d.reject('Wrong command');
-    }else{
-      d.resolve(this.userhash);
-    }
-    return d.promise;
-  };
 
   Server.acquireAuthSink = acquireAuthSink;
   return Server;
