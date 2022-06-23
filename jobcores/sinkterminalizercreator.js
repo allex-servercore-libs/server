@@ -77,7 +77,11 @@ function createSinkTerminalizerJobCore (execlib, mylib) {
   };
 
   SinkTerminalizerJobCore.prototype.sinkDestructionFunc = function () {
-    var err = this.shouldContinue();
+    var err;
+    if (!this.defer) {
+      return;
+    }
+    err = this.shouldContinue();
     //console.log('sinkDestructionFunc err', err, 'serviceclosed', this.serviceclosed);
     if (err) {
       this.defer.reject(err);

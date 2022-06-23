@@ -14,21 +14,14 @@ function createServer(execlib, signalrlib, SessionIntroductor){
       helpers = require('./helpers')(execlib),
       jobcores = require('./jobcores')(execlib, helpers);
 
+  lib.shouldClose.attachForSingleShot(onExit);
 
   var _listeningServers = new Map();
 
   function killAllListeningServers(){
-    _listeningServers.traverse(function(serv){
-      if (!lib.isFunction(serv.close)) {
-        console.log('Y no close?', serv);
-        return;
-      }
-      try {
-        serv.close();
-      } catch (e) {
-        console.error('Error', e, 'while trying to close');
-      }
-    });
+    _listeningServers.traverseSafe(function(serv){
+      serv.close();
+    }, 'Error in Server closing sequence');
   }
     
   function onExit(err){
@@ -39,10 +32,6 @@ function createServer(execlib, signalrlib, SessionIntroductor){
       console.error('Error in killAllListeningServers', e);
     }
   }
-    
-  process.on('SIGINT',onExit);
-  process.on('SIGTERM',onExit);
-  process.on('exit',onExit);
     
   function onConnectError(serv,port,err){
     if(err.code==='ECONNREFUSED'){
@@ -55,7 +44,7 @@ function createServer(execlib, signalrlib, SessionIntroductor){
   }
     
   function onServError(serv,port,err){
-    _listeningServers.remove(port);
+    _listeningServers.remove(port+'');
     if(err.code==='EADDRINUSE'){
       var c = new require('net').Socket();
       c.on('error',onConnectError.bind(null,serv,port));
@@ -70,7 +59,7 @@ function createServer(execlib, signalrlib, SessionIntroductor){
       return;
     }
     serv.on('error',onServError.bind(null,serv,port));
-    _listeningServers.add(port,serv);
+    _listeningServers.add(port+'',serv);
     serv.listen(port);
     serv = null;
   }
@@ -115,7 +104,7 @@ function createServer(execlib, signalrlib, SessionIntroductor){
       require(config.protocol.name).createServer(),
       config
     );
-    _listeningServers.add(gate.listeningPort(), gate); //so that gate can be .close()d eventually
+    _listeningServers.add(gate.listeningPort()+'', gate); //so that gate can be .close()d eventually
     defer.resolve(gate);
     defer = null;
     config = null;
@@ -150,7 +139,7 @@ function createServer(execlib, signalrlib, SessionIntroductor){
   };
   Server.prototype.serveWS = function(defer,options,authusersink){
     var gate = new WSGate(this.service,options,authusersink,options);
-    _listeningServers.add(options.port, gate);
+    _listeningServers.add(options.port+'', gate);
     defer.resolve(gate);
     defer = null;
     options = null;
@@ -228,6 +217,7 @@ function createServer(execlib, signalrlib, SessionIntroductor){
     }
     return d.promise;
   }
+  /*
   function startPorts(ports,activationpack){
     var d = q.defer();
     if(activationpack){
@@ -255,6 +245,7 @@ function createServer(execlib, signalrlib, SessionIntroductor){
     activationpack = null;
     defer = null;
   }
+  */
 
 
   function acquireAuthSink(strategies){
