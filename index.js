@@ -5,12 +5,7 @@ function createServer(execlib, signalrlib, SessionIntroductor){
       fs = require('fs'),
       execSuite = execlib.execSuite,
       registry = execSuite.registry,
-      Gate = require('./gatecreator')(execlib,SessionIntroductor),
-      HttpGate = require('./httpgatecreator')(execlib,signalrlib,Gate),
-      SocketGate = require('./socketgatecreator')(execlib,Gate),
-      WSGate = require('./wsgatecreator')(execlib,Gate),
-      ParentProcGate = require('./parentprocgatecreator')(execlib,Gate),
-      InProcGate = require('./inprocgatecreator')(execlib,Gate),
+      gatelib = require('./gate')(execlib, SessionIntroductor, signalrlib),
       helpers = require('./helpers')(execlib),
       jobcores = require('./jobcores')(execlib, helpers);
 
@@ -73,28 +68,44 @@ function createServer(execlib, signalrlib, SessionIntroductor){
     this.service = null;
     Map.prototype.destroy.call(this);
   };
-  Server.prototype.serveParentProc = function(portdescriptor,authusersink){
-    var gate = new ParentProcGate(this.service,portdescriptor,authusersink);
+  //static, this is Server
+  function preServeProc (postserveprocname, portdescriptor, options) {
+    var ret = acquireAuthSink(portdescriptor.strategies).then(
+      this[postserveprocname].bind(this,portdescriptor, options),
+      console.error.bind(console, 'acquireAuthSink failed')
+    );
+    portdescriptor = null;
+    options = null;
+    return ret;
+  }
+  Server.prototype.serveInProc = function(options, gateoptions, authusersink){
+    var gate = new gatelib.InProcGate(this.service,options,gateoptions,authusersink);
+    return gate;
+  };
+  Server.prototype.serveParentProc = function(options,gateoptions,authusersink){
+    var gate = new gatelib.ParentProcGate(this.service,options,gateoptions,authusersink);
     process.on('message',gate.handler());
     SessionIntroductor.introduce(helpers.makeSuperUserIdentity(),process.env.parentProcessID);
     process.send({child_init:process.pid});
-    portdescriptor = null;
+    options = null;
     return gate;
   };
-  Server.prototype._serveParentProc = function(portdescriptor){
-    var ret = acquireAuthSink(portdescriptor.strategies).then(
-      this.serveParentProc.bind(this,portdescriptor)
-    );
-    portdescriptor = null;
-    return ret;
-  };
-  Server.prototype.serveInProc = function(authenticator){
-    var gate = new InProcGate(this.service,null,authenticator);
+  Server.prototype.serveSocket = function(options,gateoptions,authusersink){
+    var gate = new gatelib.SocketGate(this.service,options,gateoptions,authusersink);
+    startServer(require('net')
+      .createServer(gate.handler()),
+      options.port);
+    options = null;
     return gate;
   };
-  Server.prototype.serveHttp = function(defer,config,authenticator){
+  Server.prototype.serveWS = function(options,gateoptions,authusersink){
+    var gate = new gatelib.WSGate(this.service,options,gateoptions,authusersink,options);
+    _listeningServers.add(options.port+'', gate);
+    return gate;
+  };
+  Server.prototype.serveHttp = function(config,gateoptions,authenticator){
     ///TODO: support https ...
-    var gate = new HttpGate(this.service,config,authenticator);
+    var gate = new gatelib.HttpGate(this.service,config,gateoptions,authenticator);
     /* server-unaware implementation
     require(config.protocol.name)
       .createServer(gate.handler(config))
@@ -105,90 +116,43 @@ function createServer(execlib, signalrlib, SessionIntroductor){
       config
     );
     _listeningServers.add(gate.listeningPort()+'', gate); //so that gate can be .close()d eventually
-    defer.resolve(gate);
-    defer = null;
     config = null;
+    return gate;
   };
-  Server.prototype._serveHttp = function(portdescriptor){
-    var d = q.defer(), ret = d.promise;
-    acquireAuthSink(portdescriptor.strategies).done(
-      this.serveHttp.bind(this,d,portdescriptor),
-      d.reject.bind(d)
-    );
-    d = null;
-    portdescriptor = null;
-    return ret;
-  };
-  Server.prototype.serveSocket = function(defer,options,authusersink){
-    var gate = new SocketGate(this.service,options,authusersink);
-    startServer(require('net')
-      .createServer(gate.handler()),
-      options.port);
-    defer.resolve(gate);
-    defer = null;
-    options = null;
-  };
-  Server.prototype._serveSocket = function(portdescriptor){
-    var d = q.defer();
-    acquireAuthSink(portdescriptor.strategies).done(
-      this.serveSocket.bind(this,d,portdescriptor),
-      d.reject.bind(d)
-    );
-    portdescriptor = null;
-    return d.promise;
-  };
-  Server.prototype.serveWS = function(defer,options,authusersink){
-    var gate = new WSGate(this.service,options,authusersink,options);
-    _listeningServers.add(options.port+'', gate);
-    defer.resolve(gate);
-    defer = null;
-    options = null;
-  };
-  Server.prototype._serveWS = function(portdescriptor){
-    var d = q.defer();
-    acquireAuthSink(portdescriptor.strategies).done(
-      this.serveWS.bind(this,d,portdescriptor),
-      d.reject.bind(d)
-    );
-    return d.promise;
-  };
-  Server.prototype.startPort = function(port){
+  Server.prototype.startPort = function(gateoptions, port){
     if(!(port.protocol&&port.protocol.name)){
       console.error('port descriptor',port,'has no protocol.name');
       return q.reject(new lib.Error('NO_PROTOCOL_NAME', port.protocol));
     }
+    gateoptions = gateoptions || {};
     //console.log('should start port',port);
     switch(port.protocol.name){
       case 'parent_proc':
-        return this._serveParentProc(port);
-        break;
+        return preServeProc.call(this, 'serveParentProc', port, gateoptions.parent_proc);
       case 'socket':
-        return this._serveSocket(port);
-        break;
+        return preServeProc.call(this, 'serveSocket', port, gateoptions.socket);
       case 'ws':
-        return this._serveWS(port);
-        break;
+        return preServeProc.call(this, 'serveWS', port, gateoptions.ws);
       case 'http':
-      case 'https':
-        return this._serveHttp(port);
-        break;
+        return preServeProc.call(this, 'serveHttp', port, gateoptions.http);
       default:
         //console.trace();
         console.error('protocol',port.protocol.name,'of',port,'is not supported');
         return q.reject(new lib.Error('PROTOCOL_NOT_SUPPORTED', port.protocol.name));
     }
   };
-  Server.prototype.startPorts = function(ports){
+  Server.prototype.startPorts = function(ports, gateoptions){
     var ret;
     if(!(ports&&lib.isArray(ports))){
       this.destroy();
       ports = null;
       return q(null);
     }
-    ret = q.allSettled(ports.map(this.startPort.bind(this))).then(
+    ret = q.allSettled(ports.map(this.startPort.bind(this, gateoptions))).then(
       this.onPortsStarted.bind(this),
       this.onStartPortsFailed.bind(this)
     );
+    gateoptions = null;
     ports = null;
     return ret;
   };
@@ -201,6 +165,7 @@ function createServer(execlib, signalrlib, SessionIntroductor){
     return q.reject(reason);
   };
 
+  /*
   function registerMasterSink(instancename,activationpack){
     var d = q.defer();
     if(!instancename){
@@ -217,7 +182,6 @@ function createServer(execlib, signalrlib, SessionIntroductor){
     }
     return d.promise;
   }
-  /*
   function startPorts(ports,activationpack){
     var d = q.defer();
     if(activationpack){

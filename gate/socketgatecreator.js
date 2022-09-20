@@ -1,11 +1,14 @@
-function createSocketGate(execlib,Gate){
+function createSocketGate(execlib,mylib){
   'use strict';
-  var lib = execlib.lib,talkerSpawner = execlib.execSuite.talkerSpawner;
-  function SocketGate(service,options,authenticator){
-    Gate.call(this,service,options,authenticator);
+  var lib = execlib.lib,
+    talkerSpawner = execlib.execSuite.talkerSpawner,
+    Gate = mylib.Gate;
+
+  function SocketGate(service,options,gateoptions,authenticator){
+    Gate.call(this,service,options,gateoptions,authenticator);
   }
   lib.inherit(SocketGate,Gate);
-  SocketGate.prototype.serve = function(queryarry,talker,usersession){
+  SocketGate.prototype.serve = function(talker,queryarry,usersession){
     if(!usersession){
       talker.send(['r', queryarry[0], null]);
       queryarry = null;
@@ -22,7 +25,7 @@ function createSocketGate(execlib,Gate){
     queryarry = null;
     talker = null;
   };
-  function socketErrorReporter(talker,err){
+  function socketErrorReporter(talker, queryarry, err){
     talker.send({err:err});
     talker = null;
   }
@@ -36,9 +39,11 @@ function createSocketGate(execlib,Gate){
       identity[1].ip = identity[1].ip || {};
       identity[1].ip.ip = talker.socket.remoteAddress;
     }
-    this.authenticate(identity,talker).done(
-      this.serve.bind(this,queryarry,talker),
-      socketErrorReporter.bind(null,talker)
+    this.authenticateAndServe(
+      talker,
+      identity,
+      queryarry,
+      socketErrorReporter
     );
   };
   SocketGate.prototype.handle = function(sock){
@@ -48,7 +53,8 @@ function createSocketGate(execlib,Gate){
     return this.handle.bind(this);
   };
   SocketGate.prototype.communicationType = 'socket';
-  return SocketGate;
+
+  mylib.SocketGate = SocketGate;
 }
 
 module.exports = createSocketGate;

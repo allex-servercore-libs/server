@@ -1,12 +1,14 @@
 function createServiceActivatorMixin (lib, mylib) {
   'use strict';
 
-  function ServiceActivatorMixin (registry, sessionintroductor, serverclass) {
+  function ServiceActivatorMixin (registry, sessionintroductor, serverclass, gateoptions) {
     this.registry = registry;
     this.sessionintroductor = sessionintroductor;
     this.serverclass = serverclass;
+    this.gateoptions = gateoptions || {};
   }
   ServiceActivatorMixin.prototype.destroy = function () {
+    this.gateoptions = this.gateoptions;
     this.serverclass = null;
     this.sessionintroductor = null;
     this.registry = null;

@@ -1,9 +1,10 @@
-function createGate(execlib,IntroductionStrategy){
+function createGate(execlib,IntroductionStrategy, mylib){
   'use strict';
   var lib = execlib.lib,
+    Destroyable = lib.Destroyable,
     q = lib.q,
     qlib = lib.qlib,
-    jobs = require('./jobs')(lib);
+    jobcores = require('./jobcores')(execlib);
 
   /* for test 
   function SessionsMap (parentctorname) {
@@ -24,7 +25,7 @@ function createGate(execlib,IntroductionStrategy){
   };
   */
 
-  function Gate(service,options,authenticator){
+  function Gate(service,options,gateoptions,authenticator){
     /*
     console.log('new', this.constructor.name);
     console.log('service', service);
@@ -34,16 +35,28 @@ function createGate(execlib,IntroductionStrategy){
     if (!(service && service.destroyed)) {
       return;
     }
+    if (!(authenticator && authenticator.destroyed)) {
+      return;
+    }
+    Destroyable.call(this);
     this.service = service;
     this.options = options;
+    this.myoptions = gateoptions;
     this.authenticatorSink = authenticator;
     this.service.destroyed.attachForSingleShot(this.destroy.bind(this));
     this.sessions = new lib.Map();
     //this.sessions = new SessionsMap(this.constructor.name);
     this.introducer = new IntroductionStrategy();
     this.jobs = new qlib.JobCollection();
+    this.sessionEvent = new lib.HookCollection();
+    this.jobs.run('.', qlib.newSteppedJobOnSteppedInstance(new jobcores.CreateLoggers(this)));
   }
-  Gate.prototype.destroy = function(){
+  lib.inherit(Gate, Destroyable);
+  Gate.prototype.__cleanUp = function(){
+    if (this.sessionEvent) {
+      this.sessionEvent.destroy();
+    }
+    this.sessionEvent = null;
     if (this.jobs) {
       this.jobs.destroy();
     }
@@ -60,6 +73,7 @@ function createGate(execlib,IntroductionStrategy){
       this.authenticatorSink.destroy();
     }
     this.authenticatorSink = null;
+    this.myoptions = null;
     this.options = null;
     this.service = null;
   };
@@ -67,40 +81,54 @@ function createGate(execlib,IntroductionStrategy){
     this.authenticatorSink = null;
     this.destroy();
   };
-  Gate.prototype.authenticate = function(identity, arg1) {
+  //static, this is Gate
+  function authenticate (identity, arg1) {
     if (!this.jobs) {
       return q(null);
     }
-    return this.jobs.run('.', new jobs.AuthenticateJob(this, identity, arg1));
+    return this.jobs.run('.', new jobcores.AuthenticateJob(this, identity, arg1));
   };
-  Gate.prototype.createSession = function(user,sessionid,arg1){
-    var usersession;
-    if (!this.sessions) {
-      return null;
+  Gate.prototype.authenticateAndServe = function (talker, identity, queryarry, errorfunc) {
+    authenticate.call(this, identity, talker).done(
+      this.serve.bind(this, talker, queryarry),
+      errorfunc.bind(null, talker, queryarry)
+    )
+    talker = null;
+    queryarry = null;
+  };
+  Gate.prototype.handleSessionEvent = function (evntobj) {
+    if (!(evntobj && evntobj.type && evntobj.session && this.sessionEvent)) {
+      return;
     }
-    if (this.sessions.get(sessionid)) {
-      return null;
+    switch (evntobj.type) {
+      case 'created':
+        this.handleCreatedUserSession(evntobj.session);
+        break;
+      case 'destroy_1':
+        this.onSessionDown(evntobj.session);
+        break;
     }
-    usersession = user.createSession(this,sessionid,arg1);
-    if (usersession) {
-      if (q.isThenable(usersession)) {
-        usersession.then(this.handleCreatedUserSession.bind(this));
-      } else {
-        this.handleCreatedUserSession(usersession);
-      }
-    }
-    return usersession;
+    this.sessionEvent.fire(evntobj);
   };
   Gate.prototype.handleCreatedUserSession = function (usersession) {
-    if (this.sessions && usersession && usersession.session) {
+    if (this.sessions && usersession && usersession.session && usersession.destroyed) {
       this.sessions.add(usersession.session,usersession);
+    }
+  };
+  Gate.prototype.onSessionDown = function (sessid) {
+    if (this.sessions) {
+      this.sessions.remove(sessid);
     }
   };
   Gate.prototype.defaultResponseObject = function (queryobj) {
     //console.log('defaultResponseObject', queryobj);
     return ['f', queryobj];
   };
-  return Gate;
+
+  Gate.prototype.serve = function (talkingsource, queryarry) {
+    throw new lib.Error('NOT_IMPLEMENTED', '"serve" has to be implemented by '+this.constructor.name);
+  };
+  mylib.Gate = Gate;
 }
 
 module.exports = createGate;

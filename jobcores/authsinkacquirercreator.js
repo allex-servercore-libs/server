@@ -9,7 +9,7 @@ function createAuthSinkAcquirerJobCore (execlib, mixinslib, mylib) {
 
   function AuthSinkAcquirerJobCore (listeningservers, registry, sessionintroductor, serverclass, strategies) {
     BaseServiceManipulationJobCore.call(this, listeningservers);
-    ServiceActivatorMixin.call(this, registry, sessionintroductor, serverclass);
+    ServiceActivatorMixin.call(this, registry, sessionintroductor, serverclass, null);
     this.strategies = strategies;
     this.activationPack = null;
     this.sink = null;
@@ -52,6 +52,7 @@ function createAuthSinkAcquirerJobCore (execlib, mixinslib, mylib) {
             strategies: this.strategies
           }
         },
+        {},
         this.registry,
         this.sessionintroductor,
         this.serverclass

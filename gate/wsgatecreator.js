@@ -1,8 +1,9 @@
-function createWSGate(execlib,Gate){
+function createWSGate(execlib,mylib){
   'use strict';
   var lib = execlib.lib,
     StringBuffer = lib.StringBuffer,
     WebSocket = lib.ws,
+    Gate = mylib.Gate,
     PING_PERIOD = 10*lib.intervals.Second;
 
   //var _wswid=0;
@@ -174,8 +175,8 @@ function createWSGate(execlib,Gate){
     return this.ws ? this.ws._socket._peername.port : 0;
   };
 
-  function WSGate(service,options,authenticator,wsportdescriptor){
-    Gate.call(this,service,options,authenticator);
+  function WSGate(service,options,gateoptions,authenticator,wsportdescriptor){
+    Gate.call(this,service,options,gateoptions,authenticator);
     this.server = new WebSocket.Server(lib.extend({port:wsportdescriptor.port}, this.options ? this.options.server : {}));
     this.onConnectionBound = this.onConnection.bind(this);
     this.server.on('connection',this.onConnectionBound);
@@ -196,7 +197,7 @@ function createWSGate(execlib,Gate){
   WSGate.prototype.close = function () {
     this.destroy();
   };
-  WSGate.prototype.serve = function(queryarry,wswrapper,usersession){
+  WSGate.prototype.serve = function(wswrapper,queryarry,usersession){
     if(!usersession){
       //console.log('no usersession, this is unacceptable for',require('util').inspect(queryarry,{depth:null}));
       wswrapper.send(this.defaultResponseObject(queryarry));
@@ -209,7 +210,7 @@ function createWSGate(execlib,Gate){
     }
     catch (e) {
       //wsErrorReporter(wswrapper, e);
-      this.defaultResponseObject(queryarry);
+      wswrapper.send(this.defaultResponseObject(queryarry));
     }
     wswrapper = null;
     queryarry = null;
@@ -217,7 +218,7 @@ function createWSGate(execlib,Gate){
   WSGate.prototype.onConnection = function(wsock){
     wsock.on('message',this.onMessage.bind(this,new WSWrapper(wsock)));
   };
-  function wsErrorReporter(wswrapper,err){
+  function wsErrorReporter(wswrapper,queryarry,err){
     //console.log('wsErrorReporter', err);
     wswrapper.send({err:err});
     wswrapper = null;
@@ -229,39 +230,39 @@ function createWSGate(execlib,Gate){
     }
     StringBuffer.consumeString(message, this.onMessageUnit.bind(this, wswrapper, flags));
   };
-  WSGate.prototype.onMessageUnit = function (wswrapper,flags,queryobj){
+  WSGate.prototype.onMessageUnit = function (wswrapper,flags,queryarry){
     try{
-      queryobj = JSON.parse(queryobj);
+      queryarry = JSON.parse(queryarry);
     }
     catch(e){
-      console.error('JSON.parse error', e, 'on', queryobj);
+      console.error('JSON.parse error', e, 'on', queryarry);
       //wsErrorReporter(wswrapper,e);
-      this.defaultResponseObject(queryobj);
+      this.defaultResponseObject(queryarry);
       return;
     }
     if (!wswrapper.ws) {
       return;
     }
     wswrapper.lastReceivedMoment = Date.now();
-    if (queryobj[0] === '?') {
-      wswrapper.processPing(queryobj[1]);
+    if (queryarry[0] === '?') {
+      wswrapper.processPing(queryarry[1]);
       return;
     }
-    var identity = queryobj[1] || {};
+    var identity = queryarry[1] || {};
     if(wswrapper.ws._socket.remoteAddress && identity[1]){
       identity[1].ip = identity[1].ip || {};
       identity[1].ip.ip = wswrapper.ws._socket.remoteAddress; //TODO: find remoteAddress
     }
-    this.authenticate(identity,wswrapper).done(
-      this.serve.bind(this,queryobj,wswrapper),
-      //wsErrorReporter.bind(null,wswrapper)
-      this.defaultResponseObject.bind(this, queryobj)
+    this.authenticateAndServe(
+      wswrapper,
+      identity,
+      queryarry,
+      wsErrorReporter
     );
-    queryobj = null;
   };
   WSGate.prototype.communicationType = 'ws';
 
-  return WSGate;
+  mylib.WSGate = WSGate;
 }
 
 module.exports = createWSGate;

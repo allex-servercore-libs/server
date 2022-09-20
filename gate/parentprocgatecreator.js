@@ -1,18 +1,21 @@
-function createParentProcGate(execlib,Gate){
+function createParentProcGate(execlib,mylib){
   'use strict';
-  var lib = execlib.lib, q = lib.q;
-  function ParentProcGate(service,options,authenticator){
-    Gate.call(this,service,options,authenticator);
+  var lib = execlib.lib,
+    q = lib.q,
+    Gate = mylib.Gate;
+
+  function ParentProcGate(service,options,gateoptions,authenticator){
+    Gate.call(this,service,options,gateoptions,authenticator);
   }
   lib.inherit(ParentProcGate,Gate);
 
-  function procErrorReporter(err){
+  function procErrorReporter(requester, queryarry, err){
     console.log('procErrorReporter',err);
     if(process.connected){
       process.send({err:err});
     }
   }
-  ParentProcGate.prototype.serve = function(queryarry,usersession){
+  ParentProcGate.prototype.serve = function(requester, queryarry,usersession){
     if(usersession && process.connected){
       try {
         usersession.handleIncoming(queryarry);
@@ -30,17 +33,19 @@ function createParentProcGate(execlib,Gate){
       procErrorReporter('No query object');
       return;
     }
-    this.authenticate(queryarry[1]).done(
-      this.serve.bind(this,queryarry),
+    this.authenticateAndServe(
+      null,
+      queryarry[1],
+      queryarry,
       procErrorReporter
     );
-    queryarry = null;
   };
   ParentProcGate.prototype.handler = function(){
     return this.handle.bind(this);
   };
   ParentProcGate.prototype.communicationType = 'parent_process';
-  return ParentProcGate;
+  
+  mylib.ParentProcGate = ParentProcGate;
 }
 
 module.exports = createParentProcGate;

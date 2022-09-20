@@ -2,13 +2,13 @@ var Url = require('url'),
     Path = require('path')/*,
     node_static = require('node-static')*/;
 
-
-function createHttpGate(execlib,signalrlib,Gate){
+function createHttpGate(execlib,signalrlib,mylib){
   'use strict';
-  var lib = execlib.lib;
+  var lib = execlib.lib,
+    Gate = mylib.Gate;
 
-  function HttpGate(service,options,authenticator){
-    Gate.call(this,service,options,authenticator);
+  function HttpGate(service,options,gateoptions,authenticator){
+    Gate.call(this,service,options,gateoptions,authenticator);
     this.signalRHandler = new signalrlib.ServerHandler(this.options ? this.options.options : null, this.onInvocationNeeded.bind(this));
     this._listeningPort = null;
   }
@@ -37,27 +37,29 @@ function createHttpGate(execlib,signalrlib,Gate){
   function httpErrorReporter(channel,queryobj,err){
     console.log('httpErrorReporter',queryobj);
     channel.invokeOnClient('_', {id:queryobj.id,err:err});
+    /*
     res.end();
     res = null;
+    */
     queryobj = null;
   }
-  HttpGate.prototype.handle = function(channel, queryobj){
-    var identity = queryobj[1] || {};
+  HttpGate.prototype.handle = function(channel, queryarry){
+    var identity = queryarry[1] || {};
     if(channel.remoteAddress && identity[1]){
       identity[1].ip = identity[1].ip || {};
       identity[1].ip.ip = channel.remoteAddress; //TODO: find remoteAddress
     }
-    this.authenticate(identity,channel).done(
-      this.serve.bind(this,channel,queryobj),
-      httpErrorReporter.bind(null,channel,queryobj)
+    this.authenticateAndServe(
+      channel,
+      identity,
+      queryarry,
+      httpErrorReporter
     );
   };
   HttpGate.prototype.serve = function(channel, queryarry, usersession){
     if(!usersession){
       //console.log('no usersession, this is unacceptable for',require('util').inspect(queryarry,{depth:null}));
       channel.invokeOnClient('_', this.defaultResponseObject(queryarry));
-      channel = null;
-      queryarry = null;
       return;
     }
     try {
@@ -68,8 +70,6 @@ function createHttpGate(execlib,signalrlib,Gate){
       //wsErrorReporter(wswrapper, e);
       channel.invokeOnClient('_', this.defaultResponseObject(queryarry));
     }
-    channel = null;
-    queryarry = null;
   };
   HttpGate.prototype.handler = function(options){
     options = options||{};
@@ -88,7 +88,8 @@ function createHttpGate(execlib,signalrlib,Gate){
   };
 
   HttpGate.prototype.communicationType = 'http';
-  return HttpGate;
+  
+  mylib.HttpGate = HttpGate;
 }
 
 module.exports = createHttpGate;

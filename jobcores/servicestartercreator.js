@@ -8,7 +8,7 @@ function createServiceStarterJobCore (execlib, mixinslib, mylib) {
 
   function ServiceStarterJobCore (listeningservers, serverdescriptor, registry, sessionintroductor, serverclass) {
     ServerDescriptorJobCore.call(this, listeningservers, serverdescriptor);
-    ServiceActivatorMixin.call(this, registry, sessionintroductor, serverclass);
+    ServiceActivatorMixin.call(this, registry, sessionintroductor, serverclass, serverdescriptor.gate);
     this.finalResult = null;
     this.authActivationPack = null;
     this.masterActivationPack = null;
@@ -78,8 +78,10 @@ function createServiceStarterJobCore (execlib, mixinslib, mylib) {
             strategies: {
               rolemapper: this.serverdescriptor.service.rolemapping
             }
-          }
+          },
+          gate: {}
         },
+        {},
         this.registry,
         this.sessionintroductor,
         this.serverclass
@@ -103,6 +105,7 @@ function createServiceStarterJobCore (execlib, mixinslib, mylib) {
       new mylib.ServiceActivator(
         this.listeningservers,
         this.servicedescriptor,
+        this.gateoptions,
         this.registry,
         this.sessionintroductor,
         this.serverclass,
@@ -118,8 +121,8 @@ function createServiceStarterJobCore (execlib, mixinslib, mylib) {
       return;
     }
     if (this.instanceName()) {
-      this.registry.registerSuperSink(this.instanceName(), this.authActivationPack.supersink);
-    }    
+      this.registry.registerSuperSink(this.instanceName(), this.masterActivationPack.supersink);
+    } 
   };
   ServiceStarterJobCore.prototype.onMasterSinkRegistered = function () {
 
@@ -128,7 +131,7 @@ function createServiceStarterJobCore (execlib, mixinslib, mylib) {
     if (this.finalResult) {
       return;
     }
-    return this.masterActivationPack.server.startPorts(this.serverdescriptor.ports);
+    return this.masterActivationPack.server.startPorts(this.serverdescriptor.ports, this.gateoptions);
   };
   ServiceStarterJobCore.prototype.onPortsStarted = function (portstartresult) {
   };
@@ -143,8 +146,8 @@ function createServiceStarterJobCore (execlib, mixinslib, mylib) {
     'onAuthSinkActivated',
     'activateMasterSink',
     'onMasterSinkActivated',
-    'registerMasterSink',
-    'onMasterSinkRegistered',
+    //'registerMasterSink', //unneeded
+    //'onMasterSinkRegistered', //unneeded
     'startPorts',
     'onPortsStarted',
     'finalize'

@@ -7,19 +7,21 @@ function createServiceActivatorJobCore (execlib, helpers, mixinslib, mylib) {
     ServiceDescriptorJobCore = mylib.ServiceDescriptor,
     ServiceActivatorMixin = mixinslib.ServiceActivator;
 
-  function ServiceActivatorJobCore (listeningervers, servicedescriptor, registry, sessionintroductor, serverclass, authsink) {
+  function ServiceActivatorJobCore (listeningervers, servicedescriptor, gateoptions, registry, sessionintroductor, serverclass, authsink) {
     ServiceDescriptorJobCore.call(this, listeningervers, servicedescriptor);
-    ServiceActivatorMixin.call(this, registry, sessionintroductor, serverclass);
+    ServiceActivatorMixin.call(this, registry, sessionintroductor, serverclass, gateoptions);
     this.authsink = authsink;
     this.serviceclass = null;
     this.service = null;
     this.server = null;
     this.gate = null;
     this.supersink = null;
+    this.sessionid = null;
   };
   lib.inherit(ServiceActivatorJobCore, ServiceDescriptorJobCore);
   ServiceActivatorMixin.addMethods(ServiceActivatorJobCore);
   ServiceActivatorJobCore.prototype.destroy = function () {
+    this.sessionid = null;
     this.supersink = null;
     this.gate = null;
     this.server = null;
@@ -59,15 +61,14 @@ function createServiceActivatorJobCore (execlib, helpers, mixinslib, mylib) {
   ServiceActivatorJobCore.prototype.onServicePackActivated = function (activationpackignored) {
   };
   ServiceActivatorJobCore.prototype.doTheSpawn = function () {
-    var sessionid;
     if (!(this.service && this.service.destroyed)) {
       throw new lib.Error('SERVICE_DEAD_ON_ACTIVATION');
     }
     this.service.introduceUser(helpers.makeSuperUserIdentity());
     this.server = new this.serverclass(this.service);
-    this.gate = this.server.serveInProc(this.authsink || new FakeAuthenticatorSink(helpers.makeSuperUserIdentity()));
-    sessionid = this.sessionintroductor.introduce (helpers.makeSuperUserIdentity());
-    return this.registry.spawn({}, this.gate, {}, sessionid);
+    this.gate = this.server.serveInProc(null, this.gateoptions.inproc, this.authsink || new FakeAuthenticatorSink(helpers.makeSuperUserIdentity()));
+    this.sessionid = this.sessionintroductor.introduce (helpers.makeSuperUserIdentity());
+    return this.registry.spawn({}, this.gate, {}, this.sessionid);
   };
   ServiceActivatorJobCore.prototype.onSpawn = function (supersink) {
     var d, ret;
@@ -78,6 +79,7 @@ function createServiceActivatorJobCore (execlib, helpers, mixinslib, mylib) {
       throw new lib.Error('SUPERSINK_ACQUIRED_DURING_ACTIVATION_ALREADY_DESTROYED');
     }
     this.supersink = supersink;
+    supersink.destroyed.attachForSingleShot(this.sessionintroductor.forget.bind(this.sessionintroductor, this.sessionid));
     d = q.defer();
     ret = d.promise;
     (qlib.newSteppedJobOnSteppedInstance(
@@ -116,8 +118,10 @@ function createServiceActivatorJobCore (execlib, helpers, mixinslib, mylib) {
 
   function FakeAuthenticatorSink(userhash){
     this.userhash = userhash;
+    this.destroyed = {};
   }
   FakeAuthenticatorSink.prototype.destroy = function(){
+    this.destroyed = null;
     this.userhash = null;
   };
   FakeAuthenticatorSink.prototype.call = function(command,credentials){
