@@ -35,7 +35,7 @@ function createHttpGate(execlib,signalrlib,mylib){
     }
   };
   function httpErrorReporter(channel,queryobj,err){
-    console.log('httpErrorReporter',queryobj);
+    //console.log('httpErrorReporter',queryobj);
     channel.invokeOnClient('_', {id:queryobj.id,err:err});
     /*
     res.end();
@@ -66,7 +66,7 @@ function createHttpGate(execlib,signalrlib,mylib){
       usersession.handleIncoming(queryarry)
     }
     catch (e) {
-      console.log('error in HttpGate', e);
+      //console.log('error in HttpGate', e);
       //wsErrorReporter(wswrapper, e);
       channel.invokeOnClient('_', this.defaultResponseObject(queryarry));
     }
