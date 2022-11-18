@@ -20,7 +20,7 @@ function createWSGate(execlib,mylib){
     this.pingWaiter = null;
     this.buffer = new StringBuffer();
     this.sending = false;
-    this.lastReceivedMoment = Date.now();
+    this.lastReceivedMoment = lib.now();
     this.lastCheckedMoment = null;
     this.ws.on('close', this.closer);
     this.processPing();
@@ -79,7 +79,7 @@ function createWSGate(execlib,mylib){
       console.log('lastReceivedMoment NaN, forget it');
       return;
     }
-    crit = Date.now() - this.lastReceivedMoment;
+    crit = lib.now() - this.lastReceivedMoment;
     if (crit > PING_PERIOD*2) {
       console.log(crit, '>', PING_PERIOD*2, 'will close');
       this.close();
@@ -93,7 +93,7 @@ function createWSGate(execlib,mylib){
       return;
     }
     if (this.lastCheckedMoment === this.lastReceivedMoment) {
-      console.log('lastCheckedMoment===lastReceivedMoment, that was', Date.now()-this.lastCheckedMoment, 'ago, will close');
+      console.log('lastCheckedMoment===lastReceivedMoment, that was', lib.now()-this.lastCheckedMoment, 'ago, will close');
       this.close();
       return;
     }
@@ -243,7 +243,7 @@ function createWSGate(execlib,mylib){
     if (!wswrapper.ws) {
       return;
     }
-    wswrapper.lastReceivedMoment = Date.now();
+    wswrapper.lastReceivedMoment = lib.now();
     if (queryarry[0] === '?') {
       wswrapper.processPing(queryarry[1]);
       return;
